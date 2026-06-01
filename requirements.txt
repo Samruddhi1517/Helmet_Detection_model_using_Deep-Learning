@@ -1,1 +1,9 @@
-pip freeze > requirements.txt
+flask
+ultralytics
+opencv-python-headless
+gunicorn
+huggingface_hub
+numpy
+pillow
+torch
+torchvision
