@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Helmet Detection AI</title>
+
+<style>
+body {
+    background:#0f172a;
+    color:white;
+    text-align:center;
+    font-family:Arial;
+}
+
+.box {
+    border:2px dashed #38bdf8;
+    padding:30px;
+    margin:20px;
+}
+
+button {
+    padding:10px 20px;
+    font-size:16px;
+    background:#38bdf8;
+    border:none;
+    cursor:pointer;
+    border-radius:5px;
+}
+
+.progress {
+    width:80%;
+    height:20px;
+    background:#333;
+    margin:auto;
+}
+
+.bar {
+    height:100%;
+    width:0%;
+    background:#38bdf8;
+}
+
+#videoSection {
+    display:none;
+}
+</style>
+
+</head>
+<body>
+
+<h1>🚦 Helmet Detection Dashboard</h1>
+
+
+<h2>📂 Upload Image / Video</h2>
+
+<div class="box" id="drop">
+    <h3>Drag & Drop File Here</h3>
+</div>
+
+<div class="progress">
+    <div class="bar" id="bar"></div>
+</div>
+
+<h3 id="status"></h3>
+
+<div id="result"></div>
+
+<hr>
+
+<h2>📹 Live Detection</h2>
+
+<button onclick="startLive()">Start Live Webcam</button>
+<button onclick="stopLive()" style="background:red;">Stop Webcam</button>
+
+<div id="videoSection" style="display:none;">
+    <h3>Live Feed</h3>
+    <img id="videoFeed" width="600">
+</div>
+<!-- ALERT SOUND -->
+<audio id="alarm">
+    <source src="https://www.soundjay.com/button/beep-07.wav">
+</audio>
+
+<script>
+
+// ================= DRAG & DROP =================
+let drop = document.getElementById("drop");
+
+drop.ondrop = async (e) => {
+    e.preventDefault();
+
+    let file = e.dataTransfer.files[0];
+    let form = new FormData();
+    form.append("file", file);
+
+    let url = file.type.startsWith("image") ? "/upload_image" : "/upload_video";
+
+    let res = await fetch(url, {method:"POST", body:form});
+    let data = await res.json();
+
+    if(file.type.startsWith("image")){
+        document.getElementById("result").innerHTML =
+            `<img src="${data.path}" width="400">`;
+    } else {
+        trackProgress();
+        document.getElementById("result").innerHTML =
+            `<video src="${data.path}" controls width="400"></video>`;
+    }
+};
+
+drop.ondragover = (e)=> e.preventDefault();
+
+// ================= VIDEO PROGRESS =================
+async function trackProgress(){
+    let bar = document.getElementById("bar");
+
+    let interval = setInterval(async ()=>{
+        let res = await fetch('/progress');
+        let data = await res.json();
+
+        bar.style.width = data.progress + "%";
+
+        if(data.progress >= 100){
+            clearInterval(interval);
+            document.getElementById("status").innerText = "Processing Complete ✅";
+        }
+    },500);
+}
+
+//<script>
+
+// ================= START LIVE =================
+function startLive(){
+    fetch('/start_camera');
+
+    let video = document.getElementById("videoFeed");
+
+    document.getElementById("videoSection").style.display = "block";
+
+    video.src = "";
+    setTimeout(() => {
+        video.src = "/video?" + new Date().getTime();
+    }, 200);
+}
+
+// ================= STOP LIVE =================
+function stopLive(){
+    fetch('/stop_camera');
+
+    let video = document.getElementById("videoFeed");
+    video.src = "";
+
+    document.getElementById("videoSection").style.display = "none";
+}
+
+
+// ================= ALERT SOUND =================
+setInterval(async ()=>{
+    let res = await fetch('/check_alert');
+    let data = await res.json();
+
+    if(data.alert){
+        let alarm = document.getElementById("alarm");
+        alarm.currentTime = 0;
+        alarm.play();
+    }
+},1000);
+
+</script>
+
+</body>
+</html>
