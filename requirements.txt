@@ -4,6 +4,7 @@ opencv-python-headless
 gunicorn
 huggingface_hub
 numpy
+pyttsx3
 pillow
 torch
 torchvision
