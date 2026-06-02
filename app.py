@@ -6,6 +6,44 @@ import tempfile
 import cv2
 import os
 
+# ===== CUSTOM CSS =====
+st.markdown("""
+<style>
+.stApp {
+    background-color: #0f172a;
+    color: white;
+}
+
+h1,h2,h3 {
+    color: white;
+    text-align:center;
+}
+
+div[data-testid="stFileUploader"] {
+    border:2px dashed #38bdf8;
+    border-radius:10px;
+    padding:20px;
+}
+
+.stButton>button {
+    background:#38bdf8;
+    color:white;
+    border:none;
+    border-radius:8px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ===== PAGE CONFIG =====
+st.set_page_config(
+    page_title="Helmet Detection Dashboard",
+    page_icon="🪖",
+    layout="wide"
+)
+
+# ===== YOUR APP =====
+st.title("🚦 Helmet Detection Dashboard")
+st.write("Upload an image or video for helmet detection.")
 # Page Config
 st.set_page_config(
     page_title="Helmet Detection System",
