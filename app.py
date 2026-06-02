@@ -1,190 +1,206 @@
-import streamlit as st
-# MUST BE FIRST STREAMLIT COMMAND
-st.set_page_config(
-    page_title="Helmet Detection Dashboard",
-    page_icon="🪖",
-    layout="wide"
-)
-
-from ultralytics import YOLO
-from huggingface_hub import hf_hub_download
-from PIL import Image
-import tempfile
+from flask import Flask, render_template, Response, jsonify, request, send_from_directory
 import cv2
+import time
 import os
+import platform
+import threading
+import pyttsx3
+from model_loader import load_model
 
-# ===== CUSTOM CSS =====
-st.markdown("""
-<style>
-.stApp {
-    background-color: #0f172a;
-}
+app = Flask(__name__)
 
-h1, h2, h3, p, label {
-    color: white !important;
-}
+# ================= FOLDERS =================
+os.makedirs("violations", exist_ok=True)
+os.makedirs("uploads", exist_ok=True)
+os.makedirs("outputs", exist_ok=True)
 
-[data-testid="stFileUploader"] {
-    border: 2px dashed #38bdf8;
-    border-radius: 10px;
-    padding: 20px;
-    background: #1e293b;
-}
+# ================= CAMERA =================
+cap = cv2.VideoCapture(0)
+print("Camera:", cap.isOpened())
 
-.stButton button {
-    background: #38bdf8 !important;
-    color: white !important;
-    border-radius: 8px;
-    border: none;
-}
-
-[data-testid="stSidebar"] {
-    background-color: #1e293b;
-}
-</style>
-""", unsafe_allow_html=True)
-
-
-# Page Config
-st.set_page_config(
-    page_title="Helmet Detection System",
-    page_icon="🪖",
-    layout="wide"
-)
-
-st.title(" 🚦Helmet Detection System")
-st.write("Upload an image or video to detect helmets using YOLOv8.")
-
-# Load Model
-@st.cache_resource
-def load_model():
-    model_path = hf_hub_download(
-        repo_id="iam-tsr/yolov8n-helmet-detection",
-        filename="best.pt"
-    )
-    return YOLO(model_path)
-
+# ================= MODEL =================
 model = load_model()
+print("Model loaded:", model.names)
 
-# Sidebar
-st.sidebar.header("Settings")
-confidence = st.sidebar.slider(
-    "Confidence Threshold",
-    0.1,
-    1.0,
-    0.5,
-    0.1
-)
+# ================= GLOBAL =================
+camera_running = False
+last_capture_time = 0
+capture_interval = 3
+video_progress = 0
 
-option = st.radio(
-    "Select Input Type",
-    ["Image", "Video"]
-)
+# ================= VOICE =================
+engine = pyttsx3.init()
+engine.setProperty('rate', 150)
 
-# ---------------- IMAGE DETECTION ---------------- #
+def speak_alert():
+    try:
+        engine.say("Helmet not detected")
+        engine.runAndWait()
+    except:
+        pass
 
-if option == "Image":
-
-    uploaded_file = st.file_uploader(
-        "Upload an Image",
-        type=["jpg", "jpeg", "png"]
-    )
-
-    if uploaded_file is not None:
-
-        image = Image.open(uploaded_file)
-
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.subheader("Original Image")
-            st.image(image, use_container_width=True)
-
-        with st.spinner("Detecting helmets..."):
-
-            results = model.predict(
-                image,
-                conf=confidence
-            )
-
-            detected_img = results[0].plot()
-
-        with col2:
-            st.subheader("Detection Result")
-            st.image(
-                detected_img,
-                use_container_width=True
-            )
-
-        st.success("Detection completed!")
-
-# ---------------- VIDEO DETECTION ---------------- #
-
-elif option == "Video":
-
-    uploaded_video = st.file_uploader(
-        "Upload a Video",
-        type=["mp4", "avi", "mov"]
-    )
-
-    if uploaded_video is not None:
-
-        st.video(uploaded_video)
-
-        temp_video = tempfile.NamedTemporaryFile(
-            delete=False,
-            suffix=".mp4"
-        )
-
-        temp_video.write(uploaded_video.read())
-        temp_video.close()
-
-        st.info("Processing video. This may take a few moments...")
-
-        with st.spinner("Running helmet detection..."):
-
-            results = model.predict(
-                source=temp_video.name,
-                conf=confidence,
-                save=True
-            )
-
-        st.success("Video processed successfully!")
-
-        # Locate latest output video
-        output_dir = "runs/detect"
-
-        if os.path.exists(output_dir):
-
-            folders = sorted(
-                [os.path.join(output_dir, f)
-                 for f in os.listdir(output_dir)],
-                key=os.path.getmtime
-            )
-
-            latest_folder = folders[-1]
-
-            video_files = [
-                f for f in os.listdir(latest_folder)
-                if f.endswith((".mp4", ".avi", ".mov"))
-            ]
-
-            if video_files:
-
-                output_video_path = os.path.join(
-                    latest_folder,
-                    video_files[0]
-                )
-
-                st.subheader("Processed Video")
-
-                st.video(output_video_path)
-
-                with open(output_video_path, "rb") as file:
-                    st.download_button(
-                        "⬇ Download Processed Video",
-                        file,
-                        file_name="helmet_detection_output.mp4"
-                    )
+def beep():
+    try:
+        if platform.system() == "Windows":
+            import winsound
+            winsound.Beep(1000, 500)
+        else:
+            print('\a')
+    except:
+        pass
 
 
+# ================= WEBCAM =================
+def generate_frames():
+    global camera_running, last_capture_time
+
+    while True:
+        if not camera_running:
+            time.sleep(0.1)
+            continue
+
+        success, frame = cap.read()
+        if not success:
+            continue
+
+        results = model(frame)[0]
+        no_helmet = False
+
+        for box in results.boxes:
+            cls = int(box.cls[0])
+            conf = float(box.conf[0])
+            label = model.names[cls]
+
+            x1, y1, x2, y2 = map(int, box.xyxy[0])
+
+            if "helmet" in label.lower() and "without" not in label.lower():
+                color = (0,255,0)
+                text = f"Helmet {conf:.2f}"
+            else:
+                color = (0,0,255)
+                text = f"No Helmet {conf:.2f}"
+                no_helmet = True
+
+            cv2.rectangle(frame,(x1,y1),(x2,y2),color,2)
+            cv2.putText(frame,text,(x1,y1-10),
+                        cv2.FONT_HERSHEY_SIMPLEX,0.7,color,2)
+
+        # 🚨 ALERT + SAVE
+        if no_helmet:
+            now = time.time()
+            if now - last_capture_time > capture_interval:
+                filename = f"violations/violation_{int(now)}.jpg"
+                cv2.imwrite(filename, frame)
+                last_capture_time = now
+
+                beep()
+                speak_alert()
+
+        _, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
+
+        yield (b'--frame\r\nContent-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
+
+
+# ================= IMAGE UPLOAD =================
+@app.route('/upload_image', methods=['POST'])
+def upload_image():
+    file = request.files['file']
+    path = os.path.join("uploads", file.filename)
+    file.save(path)
+
+    results = model(path)[0]
+    frame = results.plot()
+
+    out_path = os.path.join("outputs", "img_" + file.filename)
+    cv2.imwrite(out_path, frame)
+
+    return jsonify({"path": "/outputs/" + os.path.basename(out_path)})
+
+
+# ================= VIDEO PROCESS =================
+def process_video(input_path, output_path):
+    global video_progress
+
+    cap_vid = cv2.VideoCapture(input_path)
+    total = int(cap_vid.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    fourcc = cv2.VideoWriter_fourcc(*'XVID')
+    out = cv2.VideoWriter(output_path, fourcc, 20.0,
+                          (int(cap_vid.get(3)), int(cap_vid.get(4))))
+
+    count = 0
+
+    while True:
+        ret, frame = cap_vid.read()
+        if not ret:
+            break
+
+        results = model(frame)[0]
+        frame = results.plot()
+        out.write(frame)
+
+        count += 1
+        if total > 0:
+            video_progress = int((count / total) * 100)
+
+    cap_vid.release()
+    out.release()
+    video_progress = 100
+
+
+@app.route('/upload_video', methods=['POST'])
+def upload_video():
+    file = request.files['file']
+    path = os.path.join("uploads", file.filename)
+    file.save(path)
+
+    out_path = os.path.join("outputs", "vid_" + file.filename)
+
+    threading.Thread(target=process_video,
+                     args=(path, out_path)).start()
+
+    return jsonify({"path": "/outputs/" + os.path.basename(out_path)})
+
+
+# ================= PROGRESS =================
+@app.route('/progress')
+def progress():
+    return jsonify({"progress": video_progress})
+
+
+# ================= SERVE FILES =================
+@app.route('/outputs/<path:filename>')
+def send_output(filename):
+    return send_from_directory('outputs', filename)
+
+
+# ================= ROUTES =================
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+
+@app.route('/video')
+def video():
+    return Response(generate_frames(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
+
+
+@app.route('/start_camera')
+def start_camera():
+    global camera_running
+    camera_running = True
+    return "started"
+
+
+@app.route('/stop_camera')
+def stop_camera():
+    global camera_running
+    camera_running = False
+    return "stopped"
+
+
+# ================= RUN =================
+if __name__ == "__main__":
+    app.run(debug=True)
