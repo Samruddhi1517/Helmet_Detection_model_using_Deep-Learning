@@ -51,9 +51,6 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🪖 Helmet Detection System")
-st.write("Upload an image or video to detect helmets using YOLOv8.")
-
 # Load Model
 @st.cache_resource
 def load_model():
