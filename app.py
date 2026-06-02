@@ -44,8 +44,6 @@ h1, h2, h3, p, label {
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🚦 Helmet Detection Dashboard")
-st.write("Upload an image or video for helmet detection.")
 
 # Page Config
 st.set_page_config(
@@ -189,8 +187,4 @@ elif option == "Video":
                         file_name="helmet_detection_output.mp4"
                     )
 
-# Footer
-st.markdown("---")
-st.markdown(
-    "Developed using **YOLOv8 + Streamlit + Deep Learning**"
-)
+
