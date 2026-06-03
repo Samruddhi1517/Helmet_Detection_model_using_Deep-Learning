@@ -101,22 +101,32 @@ http://127.0.0.1:5000
   * No Helmet
 
 ---
+## 👨‍💻 UI
+<img width="1081" height="514" alt="image" src="https://github.com/user-attachments/assets/aa4da983-b5ff-4fc1-bd9a-0027fe0383ee" />
 
-## 📸 Input Supported
+---
+
+## 📈 Input & Output Demo
+
+### Input 
+<img width="1021" height="679" alt="image" src="https://github.com/user-attachments/assets/1b4854c7-abb3-4813-91fb-676faba7c8e8" />
+
+### Output
+<img width="1071" height="494" alt="image" src="https://github.com/user-attachments/assets/7eb9ac76-08e0-4c10-a98c-42f6c4596327" />
+
+### Input 
+<img width="1077" height="652" alt="image" src="https://github.com/user-attachments/assets/17bde7cf-e47a-41d6-b022-85a0d1dd78e9" />
+
+ ### Output
+<img width="1077" height="494" alt="image" src="https://github.com/user-attachments/assets/97ccb515-3419-412a-94c9-10c8b11a984d" />
+
+---
+
+## 📸 Supported Files
 
 * Images (.jpg, .png)
 * Videos (.mp4, .avi)
 * Live Webcam Stream
-
----
-
-## 📈 Output
-
-The system detects helmets and displays:
-
-* Bounding Boxes
-* Confidence Scores
-* Real-time Detection Results
 
 ---
 
